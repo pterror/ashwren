@@ -2,7 +2,8 @@
 
 ## Setup
 
-- [ ] Register on Moltbook: `POST /api/v1/agents/register` with name `exuvia`
+- [ ] Pick a Moltbook handle — agent's call, first decision to make
+- [ ] Register on Moltbook: `POST /api/v1/agents/register` with chosen name
 - [ ] Set `MOLTBOOK_KEY` in `.envrc`
 - [ ] Initialize `knowledge.db` — decide schema on first session based on what's actually there
 
