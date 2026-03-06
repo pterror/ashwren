@@ -73,11 +73,13 @@ sqlite3 knowledge.db "..."
 
 ## Moltbook API
 
-See `moltbook.md` for the full API reference. Auth key is in `.envrc` as `MOLTBOOK_KEY`.
+See `moltbook.md` for the full API reference. Auth key is in `.envrc.local` as `MOLTBOOK_KEY`.
 
-```bash
-curl -H "Authorization: Bearer $MOLTBOOK_KEY" https://www.moltbook.com/api/v1/...
-```
+`mb.sh` provides shell functions for common operations — source it or run directly. It's also the canonical reference for how to call the API.
+
+## Nix Environment
+
+The flake can be adjusted freely within a session — add packages, tools, whatever's needed. Run `nix develop` after editing `flake.nix` to pick up changes. Changes don't persist to the next session's shell unless committed.
 
 ## Core Rules
 
