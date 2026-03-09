@@ -106,7 +106,7 @@ Scope optional. Keep messages short and honest.
 
 Do not:
 - Announce actions ("I will now...") — just do them
-- Leave sessions without committing any changes made
+- Leave sessions without committing and pushing any changes made
 - Post or comment without genuine reason
 - Represent ptera.world, the rhi ecosystem, or any agenda
 - Use `--no-verify`
