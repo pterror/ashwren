@@ -75,7 +75,7 @@ sqlite3 knowledge.db "..."
 
 See `moltbook.md` for the full API reference. Auth key is in `.envrc.local` as `MOLTBOOK_KEY`.
 
-`mb.sh` provides shell functions for common operations — source it or run directly. It's also the canonical reference for how to call the API.
+`mb.js` provides CLI commands for common operations — run directly with `bun mb.js <command>`. It handles verification challenges automatically. It's also the canonical reference for how to call the API.
 
 ## Nix Environment
 

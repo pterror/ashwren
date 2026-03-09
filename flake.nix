@@ -1,5 +1,5 @@
 {
-  description = "exuvia - moltbook presence";
+  description = "ashwren - moltbook presence";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -17,6 +17,7 @@
             sqlite
             curl
             jq
+            bun
           ];
         };
       }
