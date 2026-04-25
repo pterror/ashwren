@@ -42,6 +42,8 @@ const NUMBER_WORDS = {
   hundred:100, thousand:1000, million:1000000,
   // phonetic/visual substitution variants ('v'→'f'/'b' in obfuscated challenges)
   fife:5, sefen:7, seben:7,
+  // y→i substitution ("fyve" for "five")
+  fyve:5,
   // informal pronunciation variants
   twenny:20,
 }
@@ -137,7 +139,7 @@ function solveChallenge(text) {
     .replace(/\breduces?\s+\w+\s+by\b/g, "reduces by")
     .replace(/\bincreases?\s+\w+\s+by\b/g, "increases by")
     .replace(/\bdecreases?\s+\w+\s+by\b/g, "decreases by")
-    .replace(/\bmultiply(?:ing)?\s+(?:\w+\s+){1,5}by\b/g, "multiplied by")
+    .replace(/\bmultipl(?:y(?:ing)?|ies)\s+(?:\w+\s+){1,5}by\b/g, "multiplied by")
     .replace(/\bby\s+(\w+)\s+times\b/g, " times $1 ")
     .replace(/\b(\w+)\s+\w+\s+strikes?\b/g, " times $1 ")
 
@@ -152,6 +154,7 @@ function solveChallenge(text) {
     [" minus ",  (a, b) => a - b],
     [" times ",  (a, b) => a * b],
     [" divided by ",    (a, b) => a / b],
+    [" per ",           (a, b) => a / b],
     [" multiplied by ", (a, b) => a * b],
     [" added to ",      (a, b) => a + b],
     [" subtracted from ", (a, b) => b - a],
@@ -177,7 +180,8 @@ function solveChallenge(text) {
   // if the question asks for a total/sum, run that keyword path first — avoids " - " noise
   // chars in obfuscated text being misread as subtraction operators
   const isTotalQuestion = /\b(total|combined|sum|altogether)\b/.test(cleaned)
-  if (isTotalQuestion) {
+  // "total X per Y" asks for a rate/ratio — skip total-sum path and fall through to " per " operator
+  if (isTotalQuestion && !/ per /.test(cleaned)) {
     // first try: extract numbers that appear right after measurement verbs
     // avoids counting "one claw" style count phrases as measurements
     // soup-style verb patterns (e.g. "ex+er+ts?") handle obfuscation with repeated letters
@@ -199,6 +203,14 @@ function solveChallenge(text) {
       const allNums = extractAllNumbers(cleaned)
       const otherNums = allNums.filter(n => Math.abs(n - measureNums[0]) > 0.001)
       if (otherNums.length === 1) return (measureNums[0] * otherNums[0]).toFixed(2)
+    }
+    // if exactly one measurement and "times N" or "multiplied by N" indicates a multiplier
+    if (measureNums.length === 1) {
+      const mxMatch = cleaned.match(/\btimes\s+(\w+)/) || cleaned.match(/\bmultiplied\s+by\s+(\w+)/)
+      if (mxMatch) {
+        const factor = parseNumber(mxMatch[1])
+        if (!isNaN(factor) && factor > 0) return (measureNums[0] * factor).toFixed(2)
+      }
     }
     // fallback: extract all numbers and sum
     const nums = extractAllNumbers(cleaned)
@@ -247,6 +259,12 @@ function solveChallenge(text) {
     if (nums.length >= 2) return nums.reduce((a, b) => a * b, 1).toFixed(2)
   }
 
+  // "X per Y" rate/ratio — two labeled measurements, first divided by second
+  if (/ per /.test(cleaned)) {
+    const nums = extractAllNumbers(cleaned)
+    if (nums.length === 2 && nums[1] !== 0) return (nums[0] / nums[1]).toFixed(2)
+  }
+
   // — fallback: if exactly two numbers, add them —
   const nums = extractAllNumbers(cleaned)
   if (nums.length === 2) return (nums[0] + nums[1]).toFixed(2)
@@ -254,7 +272,9 @@ function solveChallenge(text) {
   throw new Error(`could not solve challenge: ${text}`)
 }
 
-// extract all number values from text — uses soup matching to handle obfuscation
+// extract all number values from text — uses word-by-word soup matching to handle obfuscation
+// word-by-word (rather than full-soup sliding) prevents false matches inside non-numeric words
+// e.g. "antenna" contains "tenn" which would soup-match "ten" — anchoring to full token avoids this
 function extractAllNumbers(text) {
   const results = []
 
@@ -263,42 +283,57 @@ function extractAllNumbers(text) {
     results.push(parseFloat(m[0]))
   }
 
-  // soup-match number words in order through the text
-  // collapse to letters-only, then slide through matching known number words
-  const soup = text.toLowerCase().replace(/[^a-z]/g, "")
+  // word-by-word soup matching: each whitespace-delimited token must fully match a number word
+  // "fully match" = anchored to start AND end of the token's letter-only form
+  const tokens = text.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean)
   const wordsSorted = Object.keys(NUMBER_WORDS).sort((a, b) => b.length - a.length)
 
-  let pos = 0
-  while (pos < soup.length) {
-    let matched = false
-    // try to start a number phrase here
-    let numPos = pos, current = 0, total = 0, found = false
-    while (numPos < soup.length) {
+  let i = 0
+  while (i < tokens.length) {
+    let current = 0, total = 0, found = false
+    let j = i
+    while (j < tokens.length) {
+      const tok = tokens[j].replace(/[^a-z]/g, "")
+      if (!tok) { j++; continue }
       let wordMatched = false
       for (const word of wordsSorted) {
-        const pattern = new RegExp("^" + soupPattern(word).source)
-        const slice = soup.slice(numPos)
-        const m = slice.match(pattern)
-        if (m && !SOUP_STOP_WORDS.has(m[0])) {
+        const pattern = new RegExp("^" + soupPattern(word).source + "$")
+        if (pattern.test(tok) && !SOUP_STOP_WORDS.has(tok)) {
           const val = NUMBER_WORDS[word]
           if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
           else if (val === 100) { current = (current || 1) * 100 }
           else { current += val }
-          numPos += m[0].length
-          found = true
-          wordMatched = true
-          break
+          j++; found = true; wordMatched = true; break
         }
       }
       if (!wordMatched) break
     }
     if (found) {
-      const num = total + current
+      let num = total + current
+      // handle "N point M" decimal notation: e.g. "two point five" → 2.5
+      if (j < tokens.length) {
+        const ptTok = tokens[j].replace(/[^a-z]/g, "")
+        if (/^p+[a-z]?o+[a-z]?i+[a-z]?n+[a-z]?t+$/.test(ptTok)) {
+          const jj = j + 1
+          if (jj < tokens.length) {
+            const decTok = tokens[jj].replace(/[^a-z]/g, "")
+            for (const word of wordsSorted) {
+              const pat = new RegExp("^" + soupPattern(word).source + "$")
+              if (pat.test(decTok) && !SOUP_STOP_WORDS.has(decTok)) {
+                const decVal = NUMBER_WORDS[word]
+                if (decVal > 0 && decVal < 100) {
+                  num += decVal / Math.pow(10, String(decVal).length)
+                  j = jj + 1
+                }
+                break
+              }
+            }
+          }
+        }
+      }
       if (num > 0 && !results.some(r => Math.abs(r - num) < 0.001)) results.push(num)
-      pos = numPos
-      matched = true
-    }
-    if (!matched) pos++
+      i = j
+    } else { i++ }
   }
 
   return results
