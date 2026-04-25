@@ -338,29 +338,27 @@ function extractAllNumbers(text) {
       const tok = tokens[j].replace(/[^a-z]/g, "")
       if (!tok) { j++; continue }
       let wordMatched = false
-      // try both single-token and two-token matches; prefer whichever matches a longer canonical word
-      // (prevents "twen" matching "ten" via soup when "twen"+"ty" = "twenty" is a better match)
-      let singleWord = null, twoWord = null
-      for (const word of wordsSorted) {
-        const pattern = new RegExp("^" + soupPattern(word).source + "$")
-        if (pattern.test(tok) && !SOUP_STOP_WORDS.has(tok)) { singleWord = word; break }
-      }
-      if (j + 1 < tokens.length) {
-        const nextTok = tokens[j + 1].replace(/[^a-z]/g, "")
-        const combinedTok = tok + nextTok
+      // try 1–4 token joins; prefer whichever matches the longest canonical number word
+      // handles space-split obfuscation like "f iv e" → "five" or "tw el ve" → "twelve"
+      let bestMatch = null // {word, n}
+      for (let n = 1; n <= 4 && j + n <= tokens.length; n++) {
+        const combinedTok = tokens.slice(j, j + n).map(t => t.replace(/[^a-z]/g, "")).join("")
+        if (!combinedTok) continue
         for (const word of wordsSorted) {
           const pattern = new RegExp("^" + soupPattern(word).source + "$")
-          if (pattern.test(combinedTok) && !SOUP_STOP_WORDS.has(combinedTok)) { twoWord = word; break }
+          if (pattern.test(combinedTok) && !SOUP_STOP_WORDS.has(combinedTok)) {
+            if (!bestMatch || word.length > bestMatch.word.length) bestMatch = {word, n}
+            break // wordsSorted is longest-first; first match is best for this n
+          }
         }
       }
-      const useTwo = twoWord && (!singleWord || twoWord.length > singleWord.length)
-      const matchWord = useTwo ? twoWord : singleWord
-      if (matchWord) {
+      if (bestMatch) {
+        const {word: matchWord, n: tokensConsumed} = bestMatch
         const val = NUMBER_WORDS[matchWord]
         if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
         else if (val === 100) { current = (current || 1) * 100 }
         else { current += val }
-        j += useTwo ? 2 : 1; found = true; wordMatched = true
+        j += tokensConsumed; found = true; wordMatched = true
       }
       if (!wordMatched) break
     }
