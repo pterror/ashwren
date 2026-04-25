@@ -42,6 +42,8 @@ const NUMBER_WORDS = {
   hundred:100, thousand:1000, million:1000000,
   // phonetic/visual substitution variants ('v'→'f'/'b' in obfuscated challenges)
   fife:5, sefen:7, seben:7,
+  // informal pronunciation variants
+  twenny:20,
 }
 
 function parseNumber(text) {
