@@ -71,6 +71,25 @@ function parseNumber(text) {
   return parseNumberFromSoup(trimmed)
 }
 
+// like parseNumber but without soup fallback — used when extractAllNumbers already handles the obfuscated case
+// prevents soup false-positives like "stronger" matching "one" via "onge" subsequence
+function parseNumberExact(text) {
+  const trimmed = text.trim()
+  const digitMatch = trimmed.match(/[\d,]+\.?\d*/)
+  if (digitMatch) return parseFloat(digitMatch[0].replace(/,/g, ""))
+  const words = trimmed.toLowerCase().replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean)
+  let total = 0, current = 0, found = false
+  for (const word of words) {
+    const val = NUMBER_WORDS[word]
+    if (val === undefined) continue
+    found = true
+    if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
+    else if (val === 100) { current = (current || 1) * 100 }
+    else { current += val }
+  }
+  return found ? total + current : NaN
+}
+
 // common English words that look like number words under skip-matching but aren't numbers
 // "then" matches "ten" (t+skip_h+e+n), "there"/"these" match "three", etc.
 const SOUP_STOP_WORDS = new Set(["then", "there", "these", "their", "those"])
@@ -296,8 +315,13 @@ function solveChallenge(text) {
     const rightNear = right.trim().split(/\s+/).slice(0, 6).join(" ")
     const leftNums = extractAllNumbers(left)
     let a = leftNums.length ? leftNums[leftNums.length - 1] : NaN
-    let b = parseNumber(rightNear)
+    let b = parseNumberExact(rightNear)
     if (isNaN(b)) { const ns = extractAllNumbers(right); if (ns.length) b = ns[0] }
+    // "N times [implicit base from earlier]" — no right operand, use other left number as base
+    // e.g. "claw is 65 newtons, other claw is two times" → 2 * 65 = 130
+    if (isNaN(b) && (sym === " times " || sym === " multiplied by ") && leftNums.length >= 2) {
+      b = leftNums.find(n => Math.abs(n - a) > 0.001) ?? NaN
+    }
     if (!isNaN(a) && !isNaN(b) && (a !== 0 || b !== 0)) {
       return fn(a, b).toFixed(2)
     }
