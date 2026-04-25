@@ -134,12 +134,19 @@ function solveChallenge(text) {
     .trim()
 
   // rejoin keywords split by inserted spaces (obfuscation: "pRo dUcT" → "pro duct" → "product")
-  for (const kw of ["product", "difference", "combined", "altogether", "remaining"]) {
+  for (const kw of ["product", "difference", "combined", "altogether", "remaining",
+                    "second", "minute", "meters", "metres", "kilometer", "centimeter"]) {
     for (let i = 2; i < kw.length - 1; i++) {
       const re = new RegExp(`\\b${kw.slice(0, i)}\\s+${kw.slice(i)}\\b`, "i")
       if (re.test(cleaned)) { cleaned = cleaned.replace(re, kw); break }
     }
   }
+
+  // remove trailing noise hyphens from tokens (e.g. "s-" from "sLoW s- bY" → "s")
+  cleaned = cleaned.replace(/(\w)-(?=\s|$)/g, "$1")
+
+  // rejoin verb suffix "s" split from a consonant-ending word (e.g. "slow s by" → "slows by")
+  cleaned = cleaned.replace(/\b([a-z]{3,}[bcdfghjklmnpqrstvwxyz])\s+s\b(?=\s)/g, "$1s")
 
   // remove +, *, - directly attached to word chars (noise chars from obfuscation, not real operators)
   // real operators appear as " + ", " - " etc. with surrounding spaces
@@ -148,7 +155,7 @@ function solveChallenge(text) {
   // normalize "per <unit>" → remove "per" from unit-descriptor contexts to prevent false division
   // e.g. "centimeters per second" should not trigger the division operator
   cleaned = cleaned.replace(
-    /\bper\s+(?:second|minute|hour|day|meter|metre|centimeter|centimetre|km|inch|foot|feet|yard|mile|pound|kilogram|kg|newton|gram|liter|litre|week|month|year)s?\b/gi,
+    /\bper\s+(?:second|minute|hour|day|meter|metre|meters|metres|centimeter|centimetre|km|inch|foot|feet|yard|mile|pound|kilogram|kg|newton|gram|liter|litre|week|month|year)s?\b/gi,
     "per_unit"
   ).replace(/\s+/g, " ").trim()
 
@@ -316,30 +323,29 @@ function extractAllNumbers(text) {
       const tok = tokens[j].replace(/[^a-z]/g, "")
       if (!tok) { j++; continue }
       let wordMatched = false
+      // try both single-token and two-token matches; prefer whichever matches a longer canonical word
+      // (prevents "twen" matching "ten" via soup when "twen"+"ty" = "twenty" is a better match)
+      let singleWord = null, twoWord = null
       for (const word of wordsSorted) {
         const pattern = new RegExp("^" + soupPattern(word).source + "$")
-        if (pattern.test(tok) && !SOUP_STOP_WORDS.has(tok)) {
-          const val = NUMBER_WORDS[word]
-          if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
-          else if (val === 100) { current = (current || 1) * 100 }
-          else { current += val }
-          j++; found = true; wordMatched = true; break
-        }
+        if (pattern.test(tok) && !SOUP_STOP_WORDS.has(tok)) { singleWord = word; break }
       }
-      // if single token didn't match, try joining with next token (handles split words like "thir tyy" → "thirtyy" = thirty)
-      if (!wordMatched && j + 1 < tokens.length) {
+      if (j + 1 < tokens.length) {
         const nextTok = tokens[j + 1].replace(/[^a-z]/g, "")
         const combinedTok = tok + nextTok
         for (const word of wordsSorted) {
           const pattern = new RegExp("^" + soupPattern(word).source + "$")
-          if (pattern.test(combinedTok) && !SOUP_STOP_WORDS.has(combinedTok)) {
-            const val = NUMBER_WORDS[word]
-            if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
-            else if (val === 100) { current = (current || 1) * 100 }
-            else { current += val }
-            j += 2; found = true; wordMatched = true; break
-          }
+          if (pattern.test(combinedTok) && !SOUP_STOP_WORDS.has(combinedTok)) { twoWord = word; break }
         }
+      }
+      const useTwo = twoWord && (!singleWord || twoWord.length > singleWord.length)
+      const matchWord = useTwo ? twoWord : singleWord
+      if (matchWord) {
+        const val = NUMBER_WORDS[matchWord]
+        if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
+        else if (val === 100) { current = (current || 1) * 100 }
+        else { current += val }
+        j += useTwo ? 2 : 1; found = true; wordMatched = true
       }
       if (!wordMatched) break
     }
