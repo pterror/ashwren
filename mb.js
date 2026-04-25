@@ -314,6 +314,18 @@ function solveChallenge(text) {
     if (nums.length === 2 && /\b(combines?\s+their\s+forces?|pools?\s+their|joins?\s+forces?)\b/.test(cleaned)) {
       return (nums[0] * nums[1]).toFixed(2)
     }
+    // explicit * operator with no measure verb matched (e.g. "force is 25 * 3") → multiply, not sum
+    // applies when measureNums.length === 0 and we have exactly 2 numbers flanking the operator
+    if (measureNums.length === 0 && nums.length >= 2) {
+      const starIdx = cleaned.search(/ [*×] /)
+      if (starIdx >= 0) {
+        const beforeNums = extractAllNumbers(cleaned.slice(0, starIdx))
+        const afterNums = extractAllNumbers(cleaned.slice(starIdx + 1))
+        if (beforeNums.length > 0 && afterNums.length > 0) {
+          return (beforeNums[beforeNums.length - 1] * afterNums[0]).toFixed(2)
+        }
+      }
+    }
     if (nums.length >= 2) return nums.reduce((a, b) => a + b, 0).toFixed(2)
   }
 
