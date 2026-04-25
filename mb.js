@@ -150,25 +150,17 @@ function solveChallenge(text) {
     [" decreased by ",    (a, b) => a - b],
     [" increases by ",    (a, b) => a + b],
     [" increased by ",    (a, b) => a + b],
+    [" accelerates by ",  (a, b) => a + b],
+    [" accelerated by ",  (a, b) => a + b],
+    [" speeds up by ",    (a, b) => a + b],
     [" gained ",          (a, b) => a + b],
     [" gains ",           (a, b) => a + b],
   ]
 
-  for (const [sym, fn] of OPERATORS) {
-    const idx = cleaned.indexOf(sym)
-    if (idx === -1) continue
-    const left = cleaned.slice(0, idx)
-    const right = cleaned.slice(idx + sym.length)
-    const a = parseNumber(left)
-    const b = parseNumber(right)
-    if (!isNaN(a) && !isNaN(b) && (a !== 0 || b !== 0)) {
-      return fn(a, b).toFixed(2)
-    }
-  }
-
-  // — question-keyword strategy (after explicit operators) —
-  // "how much total" / "combined" / "sum" → add all numbers found
-  if (/\b(total|combined|sum|altogether)\b/.test(cleaned)) {
+  // if the question asks for a total/sum, run that keyword path first — avoids " - " noise
+  // chars in obfuscated text being misread as subtraction operators
+  const isTotalQuestion = /\b(total|combined|sum|altogether)\b/.test(cleaned)
+  if (isTotalQuestion) {
     // first try: extract numbers that appear right after measurement verbs
     // avoids counting "one claw" style count phrases as measurements
     // soup-style verb patterns (e.g. "ex+er+ts?") handle obfuscation with repeated letters
@@ -191,10 +183,24 @@ function solveChallenge(text) {
       const otherNums = allNums.filter(n => Math.abs(n - measureNums[0]) > 0.001)
       if (otherNums.length === 1) return (measureNums[0] * otherNums[0]).toFixed(2)
     }
-    // fallback: extract all numbers
+    // fallback: extract all numbers and sum
     const nums = extractAllNumbers(cleaned)
     if (nums.length >= 2) return nums.reduce((a, b) => a + b, 0).toFixed(2)
   }
+
+  // — explicit operator strategy (after total/sum keyword path) —
+  for (const [sym, fn] of OPERATORS) {
+    const idx = cleaned.indexOf(sym)
+    if (idx === -1) continue
+    const left = cleaned.slice(0, idx)
+    const right = cleaned.slice(idx + sym.length)
+    const a = parseNumber(left)
+    const b = parseNumber(right)
+    if (!isNaN(a) && !isNaN(b) && (a !== 0 || b !== 0)) {
+      return fn(a, b).toFixed(2)
+    }
+  }
+
   // "difference" / "how much more" / "how much less" → subtract
   if (/\b(difference|how much more|how much less|how much remain|remains|left over|remaining|whats left|what remains|what is left)\b/.test(cleaned)) {
     const nums = extractAllNumbers(cleaned)
