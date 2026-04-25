@@ -107,7 +107,9 @@ function parseNumberFromSoup(text) {
 
 function solveChallenge(text) {
   // clean: lowercase, strip noise chars but preserve +, -, spaces, digits
+  // first: remove punctuation mid-word (between two letters) to avoid splitting words like "LoS.eS"
   let cleaned = text.toLowerCase()
+    .replace(/(?<=[a-z])[^a-z\s](?=[a-z])/g, "")
     .replace(/[^\w\s+\-×÷*]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -118,6 +120,7 @@ function solveChallenge(text) {
     .replace(/\breduces?\s+\w+\s+by\b/g, "reduces by")
     .replace(/\bincreases?\s+\w+\s+by\b/g, "increases by")
     .replace(/\bdecreases?\s+\w+\s+by\b/g, "decreases by")
+    .replace(/\bmultiply(?:ing)?\s+(?:\w+\s+){1,5}by\b/g, "multiplied by")
 
   // — explicit operator strategy (checked first — explicit ops override keyword heuristics) —
   const OPERATORS = [
