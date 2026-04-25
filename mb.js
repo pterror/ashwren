@@ -200,6 +200,10 @@ function solveChallenge(text) {
     }
     // fallback: extract all numbers and sum
     const nums = extractAllNumbers(cleaned)
+    // "N entities combine/pool/join their forces" → multiply, not sum
+    if (nums.length === 2 && /\b(combines?\s+their\s+forces?|pools?\s+their|joins?\s+forces?)\b/.test(cleaned)) {
+      return (nums[0] * nums[1]).toFixed(2)
+    }
     if (nums.length >= 2) return nums.reduce((a, b) => a + b, 0).toFixed(2)
   }
 
