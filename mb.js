@@ -40,6 +40,8 @@ const NUMBER_WORDS = {
   sixteen:16, seventeen:17, eighteen:18, nineteen:19,
   twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90,
   hundred:100, thousand:1000, million:1000000,
+  // phonetic/visual substitution variants ('v'→'f'/'b' in obfuscated challenges)
+  fife:5, sefen:7, seben:7,
 }
 
 function parseNumber(text) {
