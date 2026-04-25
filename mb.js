@@ -158,6 +158,18 @@ function solveChallenge(text) {
     /\bper\s+(?:second|minute|hour|day|meter|metre|meters|metres|centimeter|centimetre|km|inch|foot|feet|yard|mile|pound|kilogram|kg|newton|gram|liter|litre|week|month|year)s?\b/gi,
     "per_unit"
   ).replace(/\s+/g, " ").trim()
+  // soup-tolerant per_unit: catches obfuscated variants like "peer seecoond"
+  // runs after literal pass to handle doubled/inserted letters the regex above misses
+  {
+    const perSrc = soupPattern("per").source
+    for (const u of ["second","minute","hour","day","meter","metre","centimeter","centimetre",
+                     "kilometer","kilometre","km","inch","foot","feet","yard","mile",
+                     "pound","kilogram","newton","gram","liter","litre","week","month","year"]) {
+      const uSrc = soupPattern(u).source
+      cleaned = cleaned.replace(new RegExp(`\\b${perSrc}\\s+${uSrc}s?\\b`, "gi"), "per_unit")
+    }
+    cleaned = cleaned.replace(/\s+/g, " ").trim()
+  }
 
   // normalize compound patterns before operator matching
   // e.g. "reduces force by" → "reduces by", "increased its speed by" → "increased by"
