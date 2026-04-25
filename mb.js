@@ -277,13 +277,34 @@ function solveChallenge(text) {
       // explicit " * N" or " × N" in text (e.g. "exerts 25 newtons * two claws")
       const starMatch = cleaned.match(/ [*×]\s+(\w+)/)
       if (starMatch) {
-        const factor = parseNumber(starMatch[1])
+        let factor = parseNumber(starMatch[1])
+        if (isNaN(factor)) {
+          // starMatch[1] may be only the first token of a split number ("thr" from "thr eee t im es")
+          // search from just after the "*" (includes starMatch[1]) to find the full number
+          const opIdx = cleaned.indexOf(starMatch[0])
+          const afterOp = cleaned.slice(opIdx + starMatch[0].indexOf("*") + 2).split(/\s+/).slice(0, 6).join(" ")
+          const nearbyNums = extractAllNumbers(afterOp)
+          if (nearbyNums.length > 0) factor = nearbyNums[0]
+        }
         if (!isNaN(factor) && factor > 0) return (measureNums[0] * factor).toFixed(2)
       }
       const mxMatch = cleaned.match(/\btimes\s+(\w+)/) || cleaned.match(/\bmultiplied\s+by\s+(\w+)/)
       if (mxMatch) {
         const factor = parseNumber(mxMatch[1])
         if (!isNaN(factor) && factor > 0) return (measureNums[0] * factor).toFixed(2)
+      }
+      // "N times" where N precedes "times" (soup-tolerant: handles "t im es" obfuscation)
+      {
+        const timesSoup = new RegExp(`\\b(\\w+(?:\\s+\\w+){0,3})\\s+${soupPattern("times").source}\\b`)
+        const timesMatch = cleaned.match(timesSoup)
+        if (timesMatch) {
+          const factorNums = extractAllNumbers(timesMatch[1])
+          if (factorNums.length > 0) {
+            const factor = factorNums[factorNums.length - 1]
+            if (factor > 0 && Math.abs(factor - measureNums[0]) > 0.001)
+              return (measureNums[0] * factor).toFixed(2)
+          }
+        }
       }
     }
     // fallback: extract all numbers and sum
