@@ -260,7 +260,9 @@ function solveChallenge(text) {
       // use extractAllNumbers (soup-based) to handle obfuscated number words
       const nearby = cleaned.slice(vm.index + vm[0].length).trim().split(/\s+/).slice(0, 5).join(" ")
       const nearbyNums = extractAllNumbers(nearby)
-      if (nearbyNums.length > 0 && nearbyNums[0] > 0) measureNums.push(nearbyNums[0])
+      // use last number in context: obfuscated prefix noise (e.g. "tween ty" before "twenty five")
+      // produces an extra number before the real value — last is the most fully-formed compound
+      if (nearbyNums.length > 0 && nearbyNums[nearbyNums.length - 1] > 0) measureNums.push(nearbyNums[nearbyNums.length - 1])
     }
     if (measureNums.length >= 2) return measureNums.reduce((a, b) => a + b, 0).toFixed(2)
     // if exactly one measurement and "strikes" indicates count-of-events, multiply
@@ -338,6 +340,16 @@ function solveChallenge(text) {
     if (nums.length >= 2) return nums.reduce((a, b) => a * b, 1).toFixed(2)
   }
 
+  // rate × time: "X per_unit for Y [time]" → X * Y (e.g. "swam at 23 m/s for 4 s, how far?")
+  if (/per_unit/.test(cleaned) && / for /.test(cleaned)) {
+    const forIdx = cleaned.indexOf(" for ")
+    const rateNums = extractAllNumbers(cleaned.slice(0, forIdx))
+    const timeNums = extractAllNumbers(cleaned.slice(forIdx + 5))
+    if (rateNums.length >= 1 && timeNums.length >= 1) {
+      return (rateNums[rateNums.length - 1] * timeNums[0]).toFixed(2)
+    }
+  }
+
   // "X per Y" rate/ratio — two labeled measurements, first divided by second
   if (/ per /.test(cleaned)) {
     const nums = extractAllNumbers(cleaned)
@@ -392,10 +404,16 @@ function extractAllNumbers(text) {
       if (bestMatch) {
         const {word: matchWord, n: tokensConsumed} = bestMatch
         const val = NUMBER_WORDS[matchWord]
-        if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
-        else if (val === 100) { current = (current || 1) * 100 }
-        else { current += val }
-        j += tokensConsumed; found = true; wordMatched = true
+        // stop compound if we see a second tens word (20–90) when current already has a tens value
+        // prevents "tween ty twenty five" from being read as 20+20+5=45 instead of 20+(25)
+        if (val >= 20 && val < 100 && current >= 20 && current < 100) {
+          // wordMatched stays false → inner loop breaks, compound ends at current value
+        } else {
+          if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
+          else if (val === 100) { current = (current || 1) * 100 }
+          else { current += val }
+          j += tokensConsumed; found = true; wordMatched = true
+        }
       }
       if (!wordMatched) break
     }
