@@ -291,13 +291,12 @@ function solveChallenge(text) {
     if (!m) continue
     const left = cleaned.slice(0, m.index)
     const right = cleaned.slice(m.index + m[0].length)
-    // use only words near the operator to avoid spurious soup matches from distant context
-    const leftNear = left.trim().split(/\s+/).slice(-8).join(" ")
+    // use extractAllNumbers anchored per-token for left (handles split compound numbers near operator)
+    // take the last number — it's closest to the operator and most likely the operand
     const rightNear = right.trim().split(/\s+/).slice(0, 6).join(" ")
-    let a = parseNumber(leftNear)
+    const leftNums = extractAllNumbers(left)
+    let a = leftNums.length ? leftNums[leftNums.length - 1] : NaN
     let b = parseNumber(rightNear)
-    // near window may miss numbers far from operator (e.g. "X meters per second ... reduces by Y")
-    if (isNaN(a)) { const ns = extractAllNumbers(left); if (ns.length) a = ns[ns.length - 1] }
     if (isNaN(b)) { const ns = extractAllNumbers(right); if (ns.length) b = ns[0] }
     if (!isNaN(a) && !isNaN(b) && (a !== 0 || b !== 0)) {
       return fn(a, b).toFixed(2)
