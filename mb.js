@@ -65,14 +65,10 @@ function parseNumber(text) {
     else if (val === 100) { current = (current || 1) * 100 }
     else { current += val }
   }
-  // always also try soup path — handles inserted spaces within number words
-  // e.g. "t hree" (split "three") which fast path misses; use larger result
-  const soupResult = parseNumberFromSoup(trimmed)
-  if (found) {
-    const fastResult = total + current
-    return (!isNaN(soupResult) && soupResult > fastResult) ? soupResult : fastResult
-  }
-  return soupResult
+  // fast path found whole-word matches — trust them; soup over-matches substrings of non-numeric words
+  if (found) return total + current
+  // fast path found nothing — fall back to soup (handles e.g. "fouuur" → four)
+  return parseNumberFromSoup(trimmed)
 }
 
 // common English words that look like number words under skip-matching but aren't numbers
@@ -133,6 +129,10 @@ function solveChallenge(text) {
     .replace(/\s+/g, " ")
     .trim()
 
+  // remove trailing noise hyphens from tokens (e.g. "s-" from "sLoW s- bY" → "s")
+  // must run before keyword rejoin so "prod- uct" becomes "prod uct" before pattern matching
+  cleaned = cleaned.replace(/(\w)-(?=\s|$)/g, "$1")
+
   // rejoin keywords split by inserted spaces (obfuscation: "pRo dUcT" → "pro duct" → "product")
   for (const kw of ["product", "difference", "combined", "altogether", "remaining",
                     "second", "minute", "meters", "metres", "kilometer", "centimeter"]) {
@@ -141,9 +141,6 @@ function solveChallenge(text) {
       if (re.test(cleaned)) { cleaned = cleaned.replace(re, kw); break }
     }
   }
-
-  // remove trailing noise hyphens from tokens (e.g. "s-" from "sLoW s- bY" → "s")
-  cleaned = cleaned.replace(/(\w)-(?=\s|$)/g, "$1")
 
   // rejoin verb suffix "s" split from a consonant-ending word (e.g. "slow s by" → "slows by")
   cleaned = cleaned.replace(/\b([a-z]{3,}[bcdfghjklmnpqrstvwxyz])\s+s\b(?=\s)/g, "$1s")
