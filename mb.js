@@ -133,6 +133,25 @@ function solveChallenge(text) {
     .replace(/\s+/g, " ")
     .trim()
 
+  // rejoin keywords split by inserted spaces (obfuscation: "pRo dUcT" → "pro duct" → "product")
+  for (const kw of ["product", "difference", "combined", "altogether", "remaining"]) {
+    for (let i = 2; i < kw.length - 1; i++) {
+      const re = new RegExp(`\\b${kw.slice(0, i)}\\s+${kw.slice(i)}\\b`, "i")
+      if (re.test(cleaned)) { cleaned = cleaned.replace(re, kw); break }
+    }
+  }
+
+  // remove +, *, - directly attached to word chars (noise chars from obfuscation, not real operators)
+  // real operators appear as " + ", " - " etc. with surrounding spaces
+  cleaned = cleaned.replace(/(?<=\w)[+*]|[+*](?=\w)/g, "")
+
+  // normalize "per <unit>" → remove "per" from unit-descriptor contexts to prevent false division
+  // e.g. "centimeters per second" should not trigger the division operator
+  cleaned = cleaned.replace(
+    /\bper\s+(?:second|minute|hour|day|meter|metre|centimeter|centimetre|km|inch|foot|feet|yard|mile|pound|kilogram|kg|newton|gram|liter|litre|week|month|year)s?\b/gi,
+    "per_unit"
+  ).replace(/\s+/g, " ").trim()
+
   // normalize compound patterns before operator matching
   // e.g. "reduces force by" → "reduces by", "increased its speed by" → "increased by"
   cleaned = cleaned
@@ -175,6 +194,7 @@ function solveChallenge(text) {
     [" speeds up by ",    (a, b) => a + b],
     [" gained ",          (a, b) => a + b],
     [" gains ",           (a, b) => a + b],
+    [" bumps ",           (a, b) => a + b],
   ]
 
   // if the question asks for a total/sum, run that keyword path first — avoids " - " noise
