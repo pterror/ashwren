@@ -165,6 +165,17 @@ function solveChallenge(text) {
   // — question-keyword strategy (after explicit operators) —
   // "how much total" / "combined" / "sum" → add all numbers found
   if (/\b(total|combined|sum|altogether)\b/.test(cleaned)) {
+    // first try: extract numbers that appear right after measurement verbs
+    // avoids counting "one claw" style count phrases as measurements
+    const measureVerbRe = /\b(?:exerts?|applies?|pushes?|pulls?|lifts?|throws?|carries?|produces?|generates?|measures?|weighs?|uses?|has|have|burns?|consumes?)\s+/gi
+    const measureNums = []
+    let vm
+    while ((vm = measureVerbRe.exec(cleaned)) !== null) {
+      const n = parseNumber(cleaned.slice(vm.index + vm[0].length))
+      if (!isNaN(n) && n > 0) measureNums.push(n)
+    }
+    if (measureNums.length >= 2) return measureNums.reduce((a, b) => a + b, 0).toFixed(2)
+    // fallback: extract all numbers
     const nums = extractAllNumbers(cleaned)
     if (nums.length >= 2) return nums.reduce((a, b) => a + b, 0).toFixed(2)
   }
