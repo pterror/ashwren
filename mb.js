@@ -197,6 +197,14 @@ function solveChallenge(text) {
     [" dropped by ",      (a, b) => a - b],
     [" slows by ",        (a, b) => a - b],
     [" slowed by ",       (a, b) => a - b],
+    [" shuffles off ",    (a, b) => a - b],
+    [" knocks off ",      (a, b) => a - b],
+    [" strips off ",      (a, b) => a - b],
+    [" shaves off ",      (a, b) => a - b],
+    [" cuts off ",        (a, b) => a - b],
+    [" takes off ",       (a, b) => a - b],
+    [" chips off ",       (a, b) => a - b],
+    [" saps off ",        (a, b) => a - b],
     [" loses ",           (a, b) => a - b],
     [" lost ",            (a, b) => a - b],
     [" reduced by ",      (a, b) => a - b],
@@ -215,7 +223,9 @@ function solveChallenge(text) {
 
   // if the question asks for a total/sum, run that keyword path first — avoids " - " noise
   // chars in obfuscated text being misread as subtraction operators
-  const isTotalQuestion = /\b(total|combined|sum|altogether)\b/.test(cleaned)
+  // use soup-tolerant patterns to catch obfuscated variants like "totaal", "totttal", "suumm"
+  const totalSoupRe = new RegExp(`\\b(${["total","combined","sum","altogether"].map(w => soupPattern(w).source).join("|")})\\b`)
+  const isTotalQuestion = totalSoupRe.test(cleaned)
   // "total X per Y" asks for a rate/ratio — skip total-sum path and fall through to " per " operator
   if (isTotalQuestion && !/ per /.test(cleaned)) {
     // first try: extract numbers that appear right after measurement verbs
@@ -235,7 +245,8 @@ function solveChallenge(text) {
     }
     if (measureNums.length >= 2) return measureNums.reduce((a, b) => a + b, 0).toFixed(2)
     // if exactly one measurement and "strikes" indicates count-of-events, multiply
-    if (measureNums.length === 1 && /\bstrikes?\b/.test(cleaned)) {
+    // soup-tolerant to catch obfuscated variants like "striikss"
+    if (measureNums.length === 1 && new RegExp(`\\b${soupPattern("strike").source}s*\\b`).test(cleaned)) {
       const allNums = extractAllNumbers(cleaned)
       const otherNums = allNums.filter(n => Math.abs(n - measureNums[0]) > 0.001)
       if (otherNums.length === 1) return (measureNums[0] * otherNums[0]).toFixed(2)
