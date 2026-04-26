@@ -173,7 +173,8 @@ function solveChallenge(text) {
   // rejoin keywords split by inserted spaces (obfuscation: "pRo dUcT" → "pro duct" → "product")
   // handles 2-part and 3-part splits (e.g. "pro du ct" → "product")
   for (const kw of ["product", "difference", "combined", "altogether", "remaining",
-                    "second", "minute", "meters", "metres", "kilometer", "centimeter"]) {
+                    "second", "minute", "meters", "metres", "kilometer", "centimeter",
+                    "reduces", "increases", "decreases", "reducing", "increasing", "decreasing"]) {
     const chars = kw.split("")
     const flexPattern = chars.map((c, i) => i < chars.length - 1 ? c + "(?:\\s+)?" : c).join("")
     const flexRe = new RegExp(`\\b${flexPattern}\\b`, "gi")
@@ -199,7 +200,8 @@ function solveChallenge(text) {
     const perSrc = soupPattern("per").source
     for (const u of ["second","minute","hour","day","meter","metre","centimeter","centimetre",
                      "kilometer","kilometre","km","inch","foot","feet","yard","mile",
-                     "pound","kilogram","newton","gram","liter","litre","week","month","year"]) {
+                     "pound","kilogram","newton","gram","liter","litre","week","month","year",
+                     "sec","min","hr"]) {
       const uSrc = soupPattern(u).source
       cleaned = cleaned.replace(new RegExp(`\\b${perSrc}\\s+${uSrc}s?\\b`, "gi"), "per_unit")
     }
@@ -208,6 +210,15 @@ function solveChallenge(text) {
 
   // normalize compound patterns before operator matching
   // e.g. "reduces force by" → "reduces by", "increased its speed by" → "increased by"
+  // soup-tolerant "reduc*" handles obfuscated forms like "redducccing"
+  {
+    const reduceSoup = new RegExp(`\\b${soupPattern("reduc").source}[a-z]*\\s+\\w+\\s+by\\b`, "gi")
+    cleaned = cleaned.replace(reduceSoup, "reduces by")
+    const increaseSoup = new RegExp(`\\b${soupPattern("increas").source}[a-z]*\\s+\\w+\\s+by\\b`, "gi")
+    cleaned = cleaned.replace(increaseSoup, "increases by")
+    const decreaseSoup = new RegExp(`\\b${soupPattern("decreas").source}[a-z]*\\s+\\w+\\s+by\\b`, "gi")
+    cleaned = cleaned.replace(decreaseSoup, "decreases by")
+  }
   cleaned = cleaned
     .replace(/\breduces?\s+\w+\s+by\b/g, "reduces by")
     .replace(/\bincreases?\s+\w+\s+by\b/g, "increases by")
