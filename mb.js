@@ -524,6 +524,16 @@ function extractAllNumbers(text) {
     } else { i++ }
   }
 
+  // dedup stutter-prefix: if two consecutive numbers n1, n2 satisfy
+  // n1 = floor(n2/10)*10 (n1 is the tens part of n2), remove n1 — it was a duplicate prefix
+  // e.g. "thirty thirty two" → [30, 32] → [32]
+  for (let k = results.length - 2; k >= 0; k--) {
+    const n1 = results[k], n2 = results[k + 1]
+    if (n1 >= 20 && n1 < 100 && n1 % 10 === 0 && n2 > n1 && Math.floor(n2 / 10) * 10 === n1 && n2 < n1 + 10) {
+      results.splice(k, 1)
+    }
+  }
+
   return results
 }
 
