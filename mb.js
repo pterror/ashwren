@@ -182,6 +182,9 @@ function solveChallenge(text) {
     if (flexRe.test(cleaned)) cleaned = cleaned.replace(flexRe, kw)
   }
 
+  // fix vowel-substitution obfuscation in number words: e↔i swaps (e.g. "twilve" → "twelve")
+  cleaned = cleaned.replace(/\btwilve\b/g, "twelve")
+
   // rejoin verb suffix "s" split from a consonant-ending word (e.g. "slow s by" → "slows by")
   cleaned = cleaned.replace(/\b([a-z]{3,}[bcdfghjklmnpqrstvwxyz])\s+s\b(?=\s)/g, "$1s")
 
@@ -390,7 +393,10 @@ function solveChallenge(text) {
       }
     }
     // fallback: extract all numbers and sum
-    const nums = extractAllNumbers(cleaned)
+    // truncate at question boundary to avoid counting quantifiers like "two" in "sum of the two X"
+    const qBoundaryIdx = cleaned.search(/\b(what|how much|how many|how far)\b/)
+    const numsText = qBoundaryIdx >= 0 ? cleaned.slice(0, qBoundaryIdx) : cleaned
+    const nums = extractAllNumbers(numsText)
     // "N entities combine/pool/join their forces" → multiply, not sum
     if (nums.length === 2 && /\b(combines?\s+their\s+forces?|pools?\s+their|joins?\s+forces?)\b/.test(cleaned)) {
       return (nums[0] * nums[1]).toFixed(2)
@@ -464,6 +470,15 @@ function solveChallenge(text) {
   if (/\b(product|each|per item|per prey)\b/.test(cleaned)) {
     const nums = extractAllNumbers(cleaned)
     if (nums.length >= 2) return nums.reduce((a, b) => a * b, 1).toFixed(2)
+  }
+  // standalone "multiply"/"multiplies" without "by" → multiply all numbers
+  // e.g. "X per_unit and Y newtons multiply?" — catches explicit multiply questions
+  {
+    const multiplySoup = new RegExp(`\\b${soupPattern("multiply").source}[a-z]*\\b`)
+    if (multiplySoup.test(cleaned)) {
+      const nums = extractAllNumbers(cleaned)
+      if (nums.length >= 2) return nums.reduce((a, b) => a * b, 1).toFixed(2)
+    }
   }
 
   // rate × time: "X per_unit for Y [time]" → X * Y (e.g. "swam at 23 m/s for 4 s, how far?")
