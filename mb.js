@@ -212,7 +212,7 @@ function solveChallenge(text) {
     .replace(/\breduces?\s+\w+\s+by\b/g, "reduces by")
     .replace(/\bincreases?\s+\w+\s+by\b/g, "increases by")
     .replace(/\bdecreases?\s+\w+\s+by\b/g, "decreases by")
-    .replace(/\bmultipl(?:y(?:ing)?|ies)\s+(?:\w+\s+){1,5}by\b/g, "multiplied by")
+    .replace(/\bmultipl\w*\s+(?:(?:\w+\s+){0,5})by\b/g, "multiplied by")
     .replace(/\bby\s+(\w+)\s+times\b/g, " times $1 ")
     .replace(/\b(\w+)\s+\w+\s+strikes?\b/g, " times $1 ")
 
