@@ -285,8 +285,14 @@ function solveChallenge(text) {
   const isTotalQuestion = totalSoupRe.test(cleaned)
   // "total X per Y" asks for a rate/ratio — skip total-sum path and fall through to " per " operator
   // if explicit subtraction verbs appear ("loses", "lost", etc.), skip sum path — operator matching handles net force
-  const subtractionSoupRe = new RegExp(`\\b(?:${["loses","lost","drops","slows","saps"].map(w => soupPattern(w).source).join("|")})\\b`)
-  const hasSubtractionOp = subtractionSoupRe.test(cleaned)
+  // word-by-word check with length guard: "loobst" (soup of "lobster") would falsely match "lost" via soup pattern;
+  // capping at target.length + 1 chars filters false positives while allowing single-doubled or single-noise matches
+  const hasSubtractionOp = (() => {
+    const subVerbPats = ["loses","lost","drops","slows","saps"].map(w => [w, soupPattern(w)])
+    return cleaned.split(/\s+/).some(word =>
+      subVerbPats.some(([target, pat]) => pat.test(word) && word.length <= target.length + 1)
+    )
+  })()
 
   // measure-verb helpers — used in total-sum path and operator-matching left-operand extraction
   const soupVerb = v => v.split("").map(c => c === "?" ? c : c + "+").join("")
@@ -320,16 +326,21 @@ function solveChallenge(text) {
     const measureVerbRe = new RegExp(`\\b(?:${MEASURE_VERBS.map(soupVerb).join("|")})\\s+`, "gi")
     const measureNums = []
     let vm
+    const nextMeasureVerbRe = new RegExp(`\\b(?:${MEASURE_VERBS.map(soupVerb).join("|")})\\b`, "i")
     while ((vm = measureVerbRe.exec(cleaned)) !== null) {
       // take next 8 words — avoids accumulating numbers from later clauses
       // 8 words handles compound numbers like "twenty four" with intervening words (e.g. "a claw force of twenty four")
       // use extractAllNumbers (soup-based) to handle obfuscated number words
       const nearby8 = cleaned.slice(vm.index + vm[0].length).trim().split(/\s+/).slice(0, 8).join(" ")
+      // truncate at next measure verb to prevent reading across clause boundaries when unit word
+      // is obfuscated (e.g. "nootons" for "newtons" not recognized by UNIT_WORDS)
+      const nextVerbIdx = nearby8.search(nextMeasureVerbRe)
+      const nearby8c = nextVerbIdx >= 0 ? nearby8.slice(0, nextVerbIdx) : nearby8
       // truncate at unit word to exclude instrument phrases ("with one claw", "using two arms")
-      const unitMatch = nearby8.search(UNIT_WORDS)
+      const unitMatch = nearby8c.search(UNIT_WORDS)
       const nearby = unitMatch >= 0
-        ? nearby8.slice(0, unitMatch + nearby8.slice(unitMatch).match(UNIT_WORDS)[0].length)
-        : nearby8
+        ? nearby8c.slice(0, unitMatch + nearby8c.slice(unitMatch).match(UNIT_WORDS)[0].length)
+        : nearby8c
       const nearbyNums = extractAllNumbers(nearby)
       // use last number in context: obfuscated prefix noise (e.g. "tween ty" before "twenty five")
       // produces an extra number before the real value — last is the most fully-formed compound
