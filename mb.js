@@ -232,6 +232,12 @@ function solveChallenge(text) {
     .replace(/\bmultipl\w*\s+(?:(?:\w+\s+){0,5})by\b/g, "multiplied by")
     .replace(/\bby\s+(\w+)\s+times\b/g, " times $1 ")
     .replace(/\b(\w+)\s+\w+\s+strikes?\b/g, " times $1 ")
+  // soup-tolerant "multiplies/multiplied by" — catches doubled-letter obfuscation like "mullttiipliess"
+  // runs after the literal pass to catch cases the literal pattern missed
+  {
+    const multipliesBySoup = new RegExp(`\\b${soupPattern("multipl").source}\\w*\\s+(?:(?:\\w+\\s+){0,5})by\\b`, "gi")
+    cleaned = cleaned.replace(multipliesBySoup, "multiplied by")
+  }
   // soup-tolerant "multiplier is N" → "times N" (e.g. "multiipliier is three" → "times three")
   {
     const multiplierIsSoup = new RegExp(`\\b${soupPattern("multipli").source}\\w*\\s+is\\b`, "gi")
@@ -449,7 +455,10 @@ function solveChallenge(text) {
     // avoids counting instrument phrases ("with one claw") as measurements
     const measureLeft = extractMeasureNum(left)
     let a = !isNaN(measureLeft) ? measureLeft : (leftNums.length ? leftNums[leftNums.length - 1] : NaN)
-    let b = parseNumberExact(rightNear)
+    // prefer extractAllNumbers over parseNumberExact for right side: if right has multiple numbers
+    // (e.g. "twenty three seven" → [23,7]), take the first rather than merging them (20+3+7=30)
+    const rightNearNums = extractAllNumbers(rightNear)
+    let b = rightNearNums.length > 1 ? rightNearNums[0] : parseNumberExact(rightNear)
     if (isNaN(b)) { const ns = extractAllNumbers(right); if (ns.length) b = ns[0] }
     // "N times [implicit base from earlier]" — no right operand, use other left number as base
     // e.g. "claw is 65 newtons, other claw is two times" → 2 * 65 = 130
@@ -575,8 +584,12 @@ function extractAllNumbers(text) {
         const val = NUMBER_WORDS[matchWord]
         // stop compound if we see a second tens word (20–90) when current already has a tens value
         // prevents "tween ty twenty five" from being read as 20+20+5=45 instead of 20+(25)
+        // also stop if adding a units digit (1–9) to a number that already has a non-zero units digit
+        // prevents "twenty three seven" from being read as 30 instead of [23, 7]
         if (val >= 20 && val < 100 && current >= 20 && current < 100) {
           // wordMatched stays false → inner loop breaks, compound ends at current value
+        } else if (val >= 1 && val <= 9 && (current + total) % 10 !== 0 && (current + total) > 0) {
+          // units digit added to number that already has a units digit — start a new number
         } else {
           if (val === 1000 || val === 1000000) { current = current || 1; total += current * val; current = 0 }
           else if (val === 100) { current = (current || 1) * 100 }
