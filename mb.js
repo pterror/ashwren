@@ -174,7 +174,8 @@ function solveChallenge(text) {
   // handles 2-part and 3-part splits (e.g. "pro du ct" → "product")
   for (const kw of ["product", "difference", "combined", "altogether", "remaining",
                     "second", "minute", "meters", "metres", "kilometer", "centimeter",
-                    "reduces", "increases", "decreases", "reducing", "increasing", "decreasing"]) {
+                    "reduces", "increases", "decreases", "reducing", "increasing", "decreasing",
+                    "loses", "lost", "gains", "drops", "shuffles"]) {
     const chars = kw.split("")
     const flexPattern = chars.map((c, i) => i < chars.length - 1 ? c + "(?:\\s+)?" : c).join("")
     const flexRe = new RegExp(`\\b${flexPattern}\\b`, "gi")
@@ -281,16 +282,37 @@ function solveChallenge(text) {
   // if explicit subtraction verbs appear ("loses", "lost", etc.), skip sum path — operator matching handles net force
   const subtractionSoupRe = new RegExp(`\\b(?:${["loses","lost","drops","slows","saps"].map(w => soupPattern(w).source).join("|")})\\b`)
   const hasSubtractionOp = subtractionSoupRe.test(cleaned)
-  if (isTotalQuestion && !/ per /.test(cleaned) && !hasSubtractionOp) {
-    // first try: extract numbers that appear right after measurement verbs
-    // avoids counting "one claw" style count phrases as measurements
-    // soup-style verb patterns (e.g. "ex+er+ts?") handle obfuscation with repeated letters
-    const soupVerb = v => v.split("").map(c => c === "?" ? c : c + "+").join("")
-    const MEASURE_VERBS = ["exerts?","applies?","pushes?","pulls?","lifts?","throws?","carries?","produces?","generates?","measures?","weighs?","uses?","has","have","burns?","consumes?","adds?","contributes?","gains?","receives?","gets?","obtains?","acquires?"]
+
+  // measure-verb helpers — used in total-sum path and operator-matching left-operand extraction
+  const soupVerb = v => v.split("").map(c => c === "?" ? c : c + "+").join("")
+  const MEASURE_VERBS = ["exerts?","applies?","pushes?","pulls?","lifts?","throws?","carries?","produces?","generates?","measures?","weighs?","uses?","has","have","burns?","consumes?","adds?","contributes?","gains?","receives?","gets?","obtains?","acquires?"]
+  // unit words — stop the near-window to avoid counting instrument phrases ("with one claw")
+  const UNIT_WORDS = /\b(newton|meter|metre|second|kilogram|gram|pound|foot|feet|inch|yard|mile|liter|litre|joule|watt|ampere|volt|kelvin|pascal)s?\b/i
+
+  // extract the measurement value from a context string using measure-verb + near-window logic
+  function extractMeasureNum(ctx) {
     const measureVerbRe = new RegExp(`\\b(?:${MEASURE_VERBS.map(soupVerb).join("|")})\\s+`, "gi")
-    // unit words — stop the near-window after the first unit to avoid counting instrument phrases
-    // e.g. "exerts 35 Newtons with one claw" → stop at "Newtons", don't count "one"
-    const UNIT_WORDS = /\b(newton|meter|metre|second|kilogram|gram|pound|foot|feet|inch|yard|mile|liter|litre|joule|watt|ampere|volt|kelvin|pascal|newton|newton)s?\b/i
+    let lastNum = NaN
+    let vm
+    while ((vm = measureVerbRe.exec(ctx)) !== null) {
+      const nearby8 = ctx.slice(vm.index + vm[0].length).trim().split(/\s+/).slice(0, 8).join(" ")
+      // stop at unit word (inclusive) or at "with" (exclusive) to exclude instrument phrases
+      const unitMatch = nearby8.search(UNIT_WORDS)
+      const withMatch = nearby8.search(/\bwith\b/)
+      let nearby = nearby8
+      if (unitMatch >= 0 && (withMatch < 0 || unitMatch <= withMatch))
+        nearby = nearby8.slice(0, unitMatch + nearby8.slice(unitMatch).match(UNIT_WORDS)[0].length)
+      else if (withMatch >= 0)
+        nearby = nearby8.slice(0, withMatch)
+      const nearbyNums = extractAllNumbers(nearby)
+      if (nearbyNums.length > 0 && nearbyNums[nearbyNums.length - 1] > 0)
+        lastNum = nearbyNums[nearbyNums.length - 1]
+    }
+    return lastNum
+  }
+
+  if (isTotalQuestion && !/ per /.test(cleaned) && !hasSubtractionOp) {
+    const measureVerbRe = new RegExp(`\\b(?:${MEASURE_VERBS.map(soupVerb).join("|")})\\s+`, "gi")
     const measureNums = []
     let vm
     while ((vm = measureVerbRe.exec(cleaned)) !== null) {
@@ -378,17 +400,22 @@ function solveChallenge(text) {
   // — explicit operator strategy (after total/sum keyword path) —
   // use soup-tolerant regex for operators: handles doubled/inserted letters in obfuscated verbs
   for (const [sym, fn] of OPERATORS) {
-    // build regex: spaces → \s+, letter sequences → soup pattern, other chars → escaped literal
-    let reStr = ""
-    let i = 0
-    while (i < sym.length) {
-      if (/\s/.test(sym[i])) { while (i < sym.length && /\s/.test(sym[i])) i++; reStr += "\\s+" }
-      else if (/[a-z]/i.test(sym[i])) {
-        let w = ""; while (i < sym.length && /[a-z]/i.test(sym[i])) { w += sym[i].toLowerCase(); i++ }
-        reStr += soupPattern(w).source
-      } else { reStr += sym[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); i++ }
+    // try exact match first; fall back to soup regex (avoids false-positives on longer words)
+    // e.g. " loses " soup would match " lobsters " — exact match finds the right token
+    let m = cleaned.match(new RegExp(sym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    if (!m) {
+      // build soup regex: spaces → \s+, letter sequences → soup pattern, other chars → escaped literal
+      let reStr = ""
+      let i = 0
+      while (i < sym.length) {
+        if (/\s/.test(sym[i])) { while (i < sym.length && /\s/.test(sym[i])) i++; reStr += "\\s+" }
+        else if (/[a-z]/i.test(sym[i])) {
+          let w = ""; while (i < sym.length && /[a-z]/i.test(sym[i])) { w += sym[i].toLowerCase(); i++ }
+          reStr += soupPattern(w).source
+        } else { reStr += sym[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); i++ }
+      }
+      m = cleaned.match(new RegExp(reStr))
     }
-    const m = cleaned.match(new RegExp(reStr))
     if (!m) continue
     const left = cleaned.slice(0, m.index)
     const right = cleaned.slice(m.index + m[0].length)
@@ -396,7 +423,10 @@ function solveChallenge(text) {
     // take the last number — it's closest to the operator and most likely the operand
     const rightNear = right.trim().split(/\s+/).slice(0, 6).join(" ")
     const leftNums = extractAllNumbers(left)
-    let a = leftNums.length ? leftNums[leftNums.length - 1] : NaN
+    // if left context has a measure verb, use measure-verb near-window to find operand
+    // avoids counting instrument phrases ("with one claw") as measurements
+    const measureLeft = extractMeasureNum(left)
+    let a = !isNaN(measureLeft) ? measureLeft : (leftNums.length ? leftNums[leftNums.length - 1] : NaN)
     let b = parseNumberExact(rightNear)
     if (isNaN(b)) { const ns = extractAllNumbers(right); if (ns.length) b = ns[0] }
     // "N times [implicit base from earlier]" — no right operand, use other left number as base
