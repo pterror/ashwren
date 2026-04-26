@@ -153,12 +153,13 @@ function solveChallenge(text) {
   cleaned = cleaned.replace(/(\w)-(?=\s|$)/g, "$1")
 
   // rejoin keywords split by inserted spaces (obfuscation: "pRo dUcT" → "pro duct" → "product")
+  // handles 2-part and 3-part splits (e.g. "pro du ct" → "product")
   for (const kw of ["product", "difference", "combined", "altogether", "remaining",
                     "second", "minute", "meters", "metres", "kilometer", "centimeter"]) {
-    for (let i = 2; i < kw.length - 1; i++) {
-      const re = new RegExp(`\\b${kw.slice(0, i)}\\s+${kw.slice(i)}\\b`, "i")
-      if (re.test(cleaned)) { cleaned = cleaned.replace(re, kw); break }
-    }
+    const chars = kw.split("")
+    const flexPattern = chars.map((c, i) => i < chars.length - 1 ? c + "(?:\\s+)?" : c).join("")
+    const flexRe = new RegExp(`\\b${flexPattern}\\b`, "gi")
+    if (flexRe.test(cleaned)) cleaned = cleaned.replace(flexRe, kw)
   }
 
   // rejoin verb suffix "s" split from a consonant-ending word (e.g. "slow s by" → "slows by")
