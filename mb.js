@@ -252,15 +252,23 @@ function solveChallenge(text) {
     // avoids counting "one claw" style count phrases as measurements
     // soup-style verb patterns (e.g. "ex+er+ts?") handle obfuscation with repeated letters
     const soupVerb = v => v.split("").map(c => c === "?" ? c : c + "+").join("")
-    const MEASURE_VERBS = ["exerts?","applies?","pushes?","pulls?","lifts?","throws?","carries?","produces?","generates?","measures?","weighs?","uses?","has","have","burns?","consumes?","adds?","contributes?"]
+    const MEASURE_VERBS = ["exerts?","applies?","pushes?","pulls?","lifts?","throws?","carries?","produces?","generates?","measures?","weighs?","uses?","has","have","burns?","consumes?","adds?","contributes?","gains?","receives?","gets?","obtains?","acquires?"]
     const measureVerbRe = new RegExp(`\\b(?:${MEASURE_VERBS.map(soupVerb).join("|")})\\s+`, "gi")
+    // unit words — stop the near-window after the first unit to avoid counting instrument phrases
+    // e.g. "exerts 35 Newtons with one claw" → stop at "Newtons", don't count "one"
+    const UNIT_WORDS = /\b(newton|meter|metre|second|kilogram|gram|pound|foot|feet|inch|yard|mile|liter|litre|joule|watt|ampere|volt|kelvin|pascal|newton|newton)s?\b/i
     const measureNums = []
     let vm
     while ((vm = measureVerbRe.exec(cleaned)) !== null) {
       // take next 8 words — avoids accumulating numbers from later clauses
       // 8 words handles compound numbers like "twenty four" with intervening words (e.g. "a claw force of twenty four")
       // use extractAllNumbers (soup-based) to handle obfuscated number words
-      const nearby = cleaned.slice(vm.index + vm[0].length).trim().split(/\s+/).slice(0, 8).join(" ")
+      const nearby8 = cleaned.slice(vm.index + vm[0].length).trim().split(/\s+/).slice(0, 8).join(" ")
+      // truncate at unit word to exclude instrument phrases ("with one claw", "using two arms")
+      const unitMatch = nearby8.search(UNIT_WORDS)
+      const nearby = unitMatch >= 0
+        ? nearby8.slice(0, unitMatch + nearby8.slice(unitMatch).match(UNIT_WORDS)[0].length)
+        : nearby8
       const nearbyNums = extractAllNumbers(nearby)
       // use last number in context: obfuscated prefix noise (e.g. "tween ty" before "twenty five")
       // produces an extra number before the real value — last is the most fully-formed compound
