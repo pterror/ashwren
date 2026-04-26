@@ -229,6 +229,11 @@ function solveChallenge(text) {
     .replace(/\bmultipl\w*\s+(?:(?:\w+\s+){0,5})by\b/g, "multiplied by")
     .replace(/\bby\s+(\w+)\s+times\b/g, " times $1 ")
     .replace(/\b(\w+)\s+\w+\s+strikes?\b/g, " times $1 ")
+  // soup-tolerant "multiplier is N" → "times N" (e.g. "multiipliier is three" → "times three")
+  {
+    const multiplierIsSoup = new RegExp(`\\b${soupPattern("multipli").source}\\w*\\s+is\\b`, "gi")
+    cleaned = cleaned.replace(multiplierIsSoup, "times")
+  }
 
   // — explicit operator strategy (checked first — explicit ops override keyword heuristics) —
   const OPERATORS = [
